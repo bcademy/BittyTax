@@ -78,13 +78,14 @@ class DataFile(object):
 
         sys.stderr.write("%sfile: %s%s '%s' %smatched as %s\"%s\"\n" % (
             Fore.WHITE, Fore.YELLOW, filename, worksheet.name,
-            Fore.WHITE, Fore.CYAN, parser.worksheet_name))
+            Fore.WHITE, Fore.CYAN, parser.name))
 
         data_file = DataFile(parser, reader)
         data_file.parse(filename=filename,
                         worksheet=worksheet.name,
                         unconfirmed=args.unconfirmed,
-                        cryptoasset=args.cryptoasset)
+                        cryptoasset=args.cryptoasset
+        )
 
         if data_file.failures:
             sys.stderr.write("%sWARNING%s Parser failure for Excel file: %s '%s'\n" % (
@@ -126,7 +127,7 @@ class DataFile(object):
             if parser is not None:
                 sys.stderr.write("%sfile: %s%s %smatched as %s\"%s\"\n" % (
                     Fore.WHITE, Fore.YELLOW, filename, Fore.WHITE,
-                    Fore.CYAN, parser.worksheet_name))
+                    Fore.CYAN, parser.name))
 
                 data_file = DataFile(parser, reader)
                 data_file.parse(filename=filename,

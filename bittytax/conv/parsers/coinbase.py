@@ -13,23 +13,37 @@ from ..exceptions import UnexpectedTypeError, UnexpectedContentError
 WALLET = "Coinbase"
 DUPLICATE = "Duplicate"
 
+def parse_coinbase(data_row, parser, **_kwargs):
+    row_dict = data_row.row_dict
+    data_row.timestamp = DataParser.parse_timestamp(row_dict['Timestamp'])
+
+    spot_price_ccy = DataParser.convert_currency(row_dict['Spot Price at Transaction'],
+                                                 row_dict['Spot Price Currency'],
+                                                 data_row.timestamp)
+    total_ccy = DataParser.convert_currency(row_dict['Total (inclusive of fees)'],
+                                            row_dict['Spot Price Currency'],
+                                            data_row.timestamp)
+
+    do_parse_coinbase(data_row, parser, (spot_price_ccy, row_dict['Subtotal'],
+                                         total_ccy, row_dict['Fees']))
+
 def parse_coinbase_gbp(data_row, parser, **_kwargs):
     row_dict = data_row.row_dict
     data_row.timestamp = DataParser.parse_timestamp(row_dict['Timestamp'])
     fiat_values = get_fiat_values(row_dict, 'GBP', data_row.timestamp)
-    parse_coinbase(data_row, parser, fiat_values)
+    do_parse_coinbase(data_row, parser, fiat_values)
 
 def parse_coinbase_eur(data_row, parser, **_kwargs):
     row_dict = data_row.row_dict
     data_row.timestamp = DataParser.parse_timestamp(row_dict['Timestamp'])
     fiat_values = get_fiat_values(row_dict, 'EUR', data_row.timestamp)
-    parse_coinbase(data_row, parser, fiat_values)
+    do_parse_coinbase(data_row, parser, fiat_values)
 
 def parse_coinbase_usd(data_row, parser, **_kwargs):
     row_dict = data_row.row_dict
     data_row.timestamp = DataParser.parse_timestamp(row_dict['Timestamp'])
     fiat_values = get_fiat_values(row_dict, 'USD', data_row.timestamp)
-    parse_coinbase(data_row, parser, fiat_values)
+    do_parse_coinbase(data_row, parser, fiat_values)
 
 def get_fiat_values(row_dict, currency, timestamp):
     sp_header = '%s Spot Price at Transaction' % currency
@@ -37,14 +51,12 @@ def get_fiat_values(row_dict, currency, timestamp):
     t_header = '%s Total (inclusive of fees)' % currency
     f_header = '%s Fees' % currency
 
-    spot_price = DataParser.convert_currency(row_dict[sp_header], currency, timestamp)
-    subtotal = DataParser.convert_currency(row_dict[st_header], currency, timestamp)
-    total = DataParser.convert_currency(row_dict[t_header], currency, timestamp)
-    fees = DataParser.convert_currency(row_dict[f_header], currency, timestamp)
-    return (spot_price, subtotal, total, fees)
+    spot_price_ccy = DataParser.convert_currency(row_dict[sp_header], currency, timestamp)
+    total_ccy = DataParser.convert_currency(row_dict[t_header], currency, timestamp)
+    return (spot_price_ccy, row_dict[st_header], total_ccy, row_dict[f_header])
 
-def parse_coinbase(data_row, parser, fiat_values):
-    (spot_price, subtotal, total, fees) = fiat_values
+def do_parse_coinbase(data_row, parser, fiat_values):
+    (spot_price_ccy, subtotal, total_ccy, fees) = fiat_values
     row_dict = data_row.row_dict
 
     if row_dict['Transaction Type'] == "Receive":
@@ -54,7 +66,8 @@ def parse_coinbase(data_row, parser, fiat_values):
                                  data_row.timestamp,
                                  buy_quantity=row_dict['Quantity Transacted'],
                                  buy_asset=row_dict['Asset'],
-                                 buy_value=spot_price * Decimal(row_dict['Quantity Transacted']),
+                                 buy_value=spot_price_ccy * \
+                                           Decimal(row_dict['Quantity Transacted']),
                                  wallet=WALLET)
         else:
             data_row.t_record = TransactionOutRecord(TransactionOutRecord.TYPE_DEPOSIT,
@@ -67,7 +80,7 @@ def parse_coinbase(data_row, parser, fiat_values):
                                                  data_row.timestamp,
                                                  buy_quantity=row_dict['Quantity Transacted'],
                                                  buy_asset=row_dict['Asset'],
-                                                 buy_value=total,
+                                                 buy_value=total_ccy,
                                                  wallet=WALLET)
     elif row_dict['Transaction Type'] == "Send":
         data_row.t_record = TransactionOutRecord(TransactionOutRecord.TYPE_WITHDRAWAL,
@@ -81,13 +94,13 @@ def parse_coinbase(data_row, parser, fiat_values):
             raise UnexpectedContentError(parser.in_header.index('Notes'), 'Notes',
                                          row_dict['Notes'])
 
-        if config.coinbase_zero_fees_are_gifts and not fees:
+        if config.coinbase_zero_fees_are_gifts and Decimal(fees) == 0:
             # Zero fees "may" indicate an early referral reward, or airdrop
             data_row.t_record = TransactionOutRecord(TransactionOutRecord.TYPE_GIFT_RECEIVED,
                                                      data_row.timestamp,
                                                      buy_quantity=row_dict['Quantity Transacted'],
                                                      buy_asset=row_dict['Asset'],
-                                                     buy_value=total if total > 0 else None,
+                                                     buy_value=total_ccy if total_ccy > 0 else None,
                                                      wallet=WALLET)
         else:
             data_row.t_record = TransactionOutRecord(TransactionOutRecord.TYPE_TRADE,
@@ -126,10 +139,10 @@ def parse_coinbase(data_row, parser, fiat_values):
                                                  data_row.timestamp,
                                                  buy_quantity=buy_quantity,
                                                  buy_asset=buy_asset,
-                                                 buy_value=total,
+                                                 buy_value=total_ccy,
                                                  sell_quantity=row_dict['Quantity Transacted'],
                                                  sell_asset=row_dict['Asset'],
-                                                 sell_value=total,
+                                                 sell_value=total_ccy,
                                                  wallet=WALLET)
 
     else:
@@ -297,6 +310,14 @@ def parse_coinbase_transactions(data_row, _parser, **_kwargs):
                                                      buy_quantity=row_dict['Amount'],
                                                      buy_asset=row_dict['Currency'],
                                                      wallet=WALLET)
+
+DataParser(DataParser.TYPE_EXCHANGE,
+           "Coinbase",
+           ['Timestamp', 'Transaction Type', 'Asset', 'Quantity Transacted',
+            'Spot Price Currency', 'Spot Price at Transaction', 'Subtotal',
+            'Total (inclusive of fees)', 'Fees', 'Notes'],
+           worksheet_name="Coinbase",
+           row_handler=parse_coinbase)
 
 DataParser(DataParser.TYPE_EXCHANGE,
            "Coinbase",

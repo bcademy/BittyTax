@@ -22,6 +22,9 @@ class PriceData(object):
             if data_source_class.__name__.upper() in [ds.upper() for ds in data_sources_required]:
                 self.data_sources[data_source_class.__name__.upper()] = data_source_class()
 
+    def __str__(self):
+        return '{}'.format(print("data source", '\n'.join(str(p) for p in self.data_sources.values())))
+
     @staticmethod
     def data_source_priority(asset):
         if asset in config.data_source_select:

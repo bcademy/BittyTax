@@ -6,6 +6,7 @@ import datetime
 from colorama import Back
 
 from .parsers import *
+from .mergers import *
 from ..config import config
 from .exceptions import DataRowError
 
@@ -20,6 +21,14 @@ class DataRow(object):
         self.t_record = None
         self.parsed = False
         self.failure = None
+    
+    def __str__(self):
+        return '{} {} {} {} {} {}'.format(print("", self.row_dict), 
+        print("", self.line_num),
+        print("", self.row),
+        print("", self.timestamp),
+        print("", self.t_record),
+        print("", self.failure))
 
     def parse(self, parser, **kwargs):
         try:

@@ -1,3 +1,4 @@
+from . import accointing
 from . import binance
 from . import barclays
 from . import bitfinex
@@ -5,6 +6,7 @@ from . import bitstamp
 from . import bittrex
 from . import blockchain
 from . import blockfi
+from . import bscscan
 from . import celsius
 from . import cgtcalculator
 from . import changetip
@@ -20,9 +22,12 @@ from . import cryptsy
 from . import electrum
 from . import energyweb
 from . import etherscan
+from . import exodus
 from . import gatehub
 from . import gravity
 from . import handcash
+from . import hecoinfo
+from . import helium
 from . import hitbtc
 from . import hotbit
 from . import ii
@@ -36,5 +41,7 @@ from . import poloniex
 from . import qtwallet
 from . import tradesatoshi
 from . import trezor
+from . import trezorsuite
 from . import uphold
 from . import wirex
+from . import zerion

@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 # (c) Nano Nano Ltd 2019
 
+import sys
+
 from .config import config
 
 class TransactionRecord(object):
@@ -11,11 +13,13 @@ class TransactionRecord(object):
     TYPE_DIVIDEND = 'Dividend'
     TYPE_INCOME = 'Income'
     TYPE_GIFT_RECEIVED = 'Gift-Received'
+    TYPE_AIRDROP = 'Airdrop'
     TYPE_WITHDRAWAL = 'Withdrawal'
     TYPE_SPEND = 'Spend'
     TYPE_GIFT_SENT = 'Gift-Sent'
     TYPE_GIFT_SPOUSE = 'Gift-Spouse'
     TYPE_CHARITY_SENT = 'Charity-Sent'
+    TYPE_LOST = 'Lost'
     TYPE_TRADE = 'Trade'
 
     ALL_TYPES = (TYPE_DEPOSIT,
@@ -25,11 +29,13 @@ class TransactionRecord(object):
                  TYPE_INTEREST,
                  TYPE_DIVIDEND,
                  TYPE_GIFT_RECEIVED,
+                 TYPE_AIRDROP,
                  TYPE_WITHDRAWAL,
                  TYPE_SPEND,
                  TYPE_GIFT_SENT,
                  TYPE_GIFT_SPOUSE,
                  TYPE_CHARITY_SENT,
+                 TYPE_LOST,
                  TYPE_TRADE)
 
     cnt = 0
@@ -59,6 +65,10 @@ class TransactionRecord(object):
             self.fee.timestamp = self.timestamp.astimezone(config.TZ_LOCAL)
             self.fee.wallet = self.wallet
             self.fee.note = self.note
+    
+    def __str__(self):
+        return '{} {} {} {} {} {} {} {}'.format(print("", self.tid), print("", self.t_type), print("", self.buy), print("", self.sell), print("", self.fee), print("", self.wallet), print("", self.timestamp), print("", self.note))
+        
 
     def set_tid(self):
         if self.tid is None:
@@ -73,7 +83,7 @@ class TransactionRecord(object):
         if self.fee:
             return " + fee=%s %s%s" % (
                 self._format_quantity(self.fee.quantity),
-                self.fee.asset,
+                self._format_str(self.fee.asset),
                 self._format_value(self.fee.proceeds))
         return ''
 
@@ -94,6 +104,8 @@ class TransactionRecord(object):
     @staticmethod
     def _format_note(note):
         if note:
+            if sys.version_info[0] < 3:
+                return "'%s' " % note.decode('utf8')
             return "'%s' " % note
         return ''
 
@@ -109,6 +121,12 @@ class TransactionRecord(object):
             return ''
         return '{:0f}'.format(decimal.normalize())
 
+    @staticmethod
+    def _format_str(string):
+        if sys.version_info[0] < 3:
+            return string.decode('utf8')
+        return string
+
     def __eq__(self, other):
         return self.timestamp == other.timestamp
 
@@ -118,88 +136,86 @@ class TransactionRecord(object):
     def __lt__(self, other):
         return self.timestamp < other.timestamp
 
-    def __str__(self):
-        if self.buy and self.sell:
-            return "%s %s %s%s <- %s %s%s%s '%s' %s %s[TID:%s]" % (
-                self.t_type,
-                self._format_quantity(self.buy.quantity),
-                self.buy.asset,
-                self._format_value(self.buy.cost),
-                self._format_quantity(self.sell.quantity),
-                self.sell.asset,
-                self._format_value(self.sell.proceeds),
-                self._format_fee(),
-                self.wallet,
-                self._format_timestamp(self.timestamp),
-                self._format_note(self.note),
-                self.tid[0])
-        elif self.buy:
-            return "%s %s %s%s%s '%s' %s %s[TID:%s]" % (
-                self.t_type,
-                self._format_quantity(self.buy.quantity),
-                self.buy.asset,
-                self._format_value(self.buy.cost),
-                self._format_fee(),
-                self.wallet,
-                self._format_timestamp(self.timestamp),
-                self._format_note(self.note),
-                self.tid[0])
-        elif self.sell:
-            return "%s %s %s%s%s '%s' %s %s[TID:%s]" % (
-                self.t_type,
-                self._format_quantity(self.sell.quantity),
-                self.sell.asset,
-                self._format_value(self.sell.proceeds),
-                self._format_fee(),
-                self.wallet,
-                self._format_timestamp(self.timestamp),
-                self._format_note(self.note),
-                self.tid[0])
-
-        return ''
+    # def __str__(self):
+    #     if self.buy and self.sell:
+    #         return "%s %s %s%s <- %s %s%s%s '%s' %s %s[TID:%s]" % (
+    #             self.t_type,
+    #             self._format_quantity(self.buy.quantity),
+    #             self._format_str(self.buy.asset),
+    #             self._format_value(self.buy.cost),
+    #             self._format_quantity(self.sell.quantity),
+    #             self._format_str(self.sell.asset),
+    #             self._format_value(self.sell.proceeds),
+    #             self._format_fee(),
+    #             self._format_str(self.wallet),
+    #             self._format_timestamp(self.timestamp),
+    #             self._format_note(self.note),
+    #             self.tid[0])
+    #     if self.buy:
+    #         return "%s %s %s%s%s '%s' %s %s[TID:%s]" % (
+    #             self.t_type,
+    #             self._format_quantity(self.buy.quantity),
+    #             self._format_str(self.buy.asset),
+    #             self._format_value(self.buy.cost),
+    #             self._format_fee(),
+    #             self._format_str(self.wallet),
+    #             self._format_timestamp(self.timestamp),
+    #             self._format_note(self.note),
+    #             self.tid[0])
+    #     if self.sell:
+    #         return "%s %s %s%s%s '%s' %s %s[TID:%s]" % (
+    #             self.t_type,
+    #             self._format_quantity(self.sell.quantity),
+    #             self._format_str(self.sell.asset),
+    #             self._format_value(self.sell.proceeds),
+    #             self._format_fee(),
+    #             self._format_str(self.wallet),
+    #             self._format_timestamp(self.timestamp),
+    #             self._format_note(self.note),
+    #             self.tid[0])
+    #     return []
 
     def to_csv(self):
         if self.buy and self.sell:
             return [self.t_type,
                     self._format_decimal(self.buy.quantity),
-                    self.buy.asset,
+                    self._format_str(self.buy.asset),
                     self._format_decimal(self.buy.cost),
                     self._format_decimal(self.sell.quantity),
-                    self.sell.asset,
+                    self._format_str(self.sell.asset),
                     self._format_decimal(self.sell.proceeds),
                     self._format_decimal(self.fee.quantity) if self.fee else '',
-                    self.fee.asset if self.fee else '',
+                    self._format_str(self.fee.asset) if self.fee else '',
                     self._format_decimal(self.fee.proceeds) if self.fee else '',
-                    self.wallet,
+                    self._format_str(self.wallet),
                     self._format_timestamp(self.timestamp),
-                    self.note]
-        elif self.buy:
+                    self._format_str(self.note)]
+        if self.buy:
             return [self.t_type,
                     self._format_decimal(self.buy.quantity),
-                    self.buy.asset,
+                    self._format_str(self.buy.asset),
                     self._format_decimal(self.buy.cost),
                     '',
                     '',
                     '',
                     self._format_decimal(self.fee.quantity) if self.fee else '',
-                    self.fee.asset if self.fee else '',
+                    self._format_str(self.fee.asset) if self.fee else '',
                     self._format_decimal(self.fee.proceeds) if self.fee else '',
-                    self.wallet,
+                    self._format_str(self.wallet),
                     self._format_timestamp(self.timestamp),
-                    self.note]
-        elif self.sell:
+                    self._format_str(self.note)]
+        if self.sell:
             return [self.t_type,
                     '',
                     '',
                     '',
                     self._format_decimal(self.sell.quantity),
-                    self.sell.asset,
+                    self._format_str(self.sell.asset),
                     self._format_decimal(self.sell.proceeds),
                     self._format_decimal(self.fee.quantity) if self.fee else '',
-                    self.fee.asset if self.fee else '',
+                    self._format_str(self.fee.asset) if self.fee else '',
                     self._format_decimal(self.fee.proceeds) if self.fee else '',
-                    self.wallet,
+                    self._format_str(self.wallet),
                     self._format_timestamp(self.timestamp),
-                    self.note]
-
+                    self._format_str(self.note)]
         return []

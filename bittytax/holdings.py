@@ -18,6 +18,20 @@ class Holdings(object):
         self.deposits = 0
         self.mismatches = 0
 
+    def __str__(self):
+        return '{} {} {} {} {} {} {}'.format(print("asset_holding", self.asset), 
+        print("quantity_holding", self.quantity), 
+        print("cost_holding", self.cost),
+        print("fees", self.fees),
+        print("withdrawals_holding", self.withdrawals),
+        print("deposit_holding", self.deposits),
+        print("mismatches_holding", self.mismatches))
+
+    # def __str__(self):
+    #     return '{}'.format(self.cost)
+
+    
+
     def add_tokens(self, quantity, cost, fees, is_deposit):
         self.quantity += quantity
         self.cost += cost

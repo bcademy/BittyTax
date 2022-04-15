@@ -14,13 +14,16 @@ class OutputBase(object):
     DEFAULT_FILENAME = 'BittyTax_Records'
     EXCEL_PRECISION = 15
     BITTYTAX_OUT_HEADER = ['Type',
-                           'Buy Quantity', 'Buy Asset', 'Buy Value',
-                           'Sell Quantity', 'Sell Asset', 'Sell Value',
-                           'Fee Quantity', 'Fee Asset', 'Fee Value',
+                           'Buy Quantity', 'Buy Asset', 'Buy Value in ' + config.ccy,
+                           'Sell Quantity', 'Sell Asset', 'Sell Value in ' + config.ccy,
+                           'Fee Quantity', 'Fee Asset', 'Fee Value in ' + config.ccy,
                            'Wallet', 'Timestamp', 'Note']
 
     def __init__(self, data_files):
         self.data_files = data_files
+    
+    def __str__(self):
+        print("base", self.data_files)
 
     @staticmethod
     def get_output_filename(filename, extension_type):
@@ -57,11 +60,13 @@ class OutputCsv(OutputBase):
                           TransactionOutRecord.TYPE_DIVIDEND: 'Income',
                           TransactionOutRecord.TYPE_INCOME: 'Income',
                           TransactionOutRecord.TYPE_GIFT_RECEIVED: 'Gift',
+                          TransactionOutRecord.TYPE_AIRDROP: 'Airdrop',
                           TransactionOutRecord.TYPE_WITHDRAWAL: 'Withdrawal',
                           TransactionOutRecord.TYPE_SPEND: 'Purchase',
                           TransactionOutRecord.TYPE_GIFT_SENT: 'Gift',
-                          TransactionOutRecord.TYPE_GIFT_SPOUSE: 'Gift',
+                          TransactionOutRecord.TYPE_GIFT_SPOUSE: 'Spouse',
                           TransactionOutRecord.TYPE_CHARITY_SENT: 'Donation',
+                          TransactionOutRecord.TYPE_LOST: 'Lost',
                           TransactionOutRecord.TYPE_TRADE: 'Trade'}
 
     def __init__(self, data_files, args):
@@ -75,6 +80,9 @@ class OutputCsv(OutputBase):
         self.sort = args.sort
         self.no_header = args.noheader
         self.append_raw_data = args.append
+    
+    def __str__(self):
+        return '{}'.format(print("csv-append: ", self.append_raw_data))
 
     def out_header(self):
         if self.csv_format == config.FORMAT_RECAP:
@@ -90,55 +98,71 @@ class OutputCsv(OutputBase):
         return in_header
 
     def write_csv(self):
-        if self.filename:
-            if sys.version_info[0] >= 3:
-                with open(self.filename, 'w', newline='', encoding='utf-8') as csv_file:
-                    writer = csv.writer(csv_file, lineterminator='\n')
-                    self.write_rows(writer)
-            else:
-                with open(self.filename, 'wb') as csv_file:
-                    writer = csv.writer(csv_file, lineterminator='\n')
-                    self.write_rows(writer)
+        # if self.filename:
+        #     if sys.version_info[0] >= 3:
+        #         with open(self.filename, 'w', newline='', encoding='utf-8') as csv_file:
+        #             writer = csv.writer(csv_file, lineterminator='\n')
+        #             self.write_rows(writer)
+                
+        #     else:
+        #         with open(self.filename, 'wb') as csv_file:
+        #             writer = csv.writer(csv_file, lineterminator='\n')
+        #             self.write_rows(writer)
 
-            sys.stderr.write("%soutput CSV file created: %s%s\n" % (
-                Fore.WHITE, Fore.YELLOW, self.filename))
-        else:
-            if sys.version_info[0] > 3:
-                sys.stdout.reconfigure(encoding='utf-8')
-
-            writer = csv.writer(sys.stdout, lineterminator='\n')
-            self.write_rows(writer)
+        #     sys.stderr.write("%soutput CSV file created: %s%s\n" % (
+        #         Fore.WHITE, Fore.YELLOW, self.filename))
+                
+        # else:
+        #     if sys.version_info[0] > 3:
+        #         sys.stdout.reconfigure(encoding='utf-8')
+            
+        writer = csv.writer(sys.stdout, lineterminator='\n')
+            
+        row_writer = self.write_rows(writer)
+        #return [str(item) for item in ciccia]
+        return row_writer
 
     def write_rows(self, writer):
         data_rows = []
+        tmpheader = []
+        tmptransaction = []
         for data_file in self.data_files:
             data_rows.extend(data_file.data_rows)
-
+        
         if self.sort:
             data_rows = sorted(data_rows, key=lambda dr: dr.timestamp, reverse=False)
-
+        
         if not self.no_header:
             if self.append_raw_data:
+                
                 writer.writerow(self.out_header() +
                                 self.in_header(self.data_files[0].parser.in_header))
             else:
                 writer.writerow(self.out_header())
+                tmpheader.append(self.out_header())
 
         for data_row in data_rows:
             if self.append_raw_data:
                 if data_row.t_record:
+                    
                     writer.writerow(self._to_csv(data_row.t_record) + data_row.row)
                 else:
                     writer.writerow([None] * len(self.out_header()) + data_row.row)
+                    
             else:
-                if data_row.t_record:
+                
+                if data_row.t_record:                   
                     writer.writerow(self._to_csv(data_row.t_record))
+                    tmptransaction.append(self._to_csv(data_row.t_record))
+        return tmptransaction      
+        
 
     def _to_csv(self, t_record):
         if self.csv_format == config.FORMAT_RECAP:
             return self._to_recap_csv(t_record)
 
         return self._to_bittytax_csv(t_record)
+        
 
     @staticmethod
     def _format_timestamp(timestamp):

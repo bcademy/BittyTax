@@ -11,6 +11,7 @@ from .config import config
 
 class AuditRecords(object):
     def __init__(self, transaction_records):
+        #print("a",transaction_records)
         self.wallets = {}
         self.totals = {}
         self.failures = []

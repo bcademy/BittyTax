@@ -76,6 +76,7 @@ class OutputExcel(OutputBase):
 
     def write_excel(self):
         data_files = sorted(self.data_files, key=lambda df: df.parser.worksheet_name, reverse=False)
+        print(data_files)
         for data_file in data_files:
             worksheet = Worksheet(self, data_file)
 
@@ -103,13 +104,15 @@ class Worksheet(object):
                 TransactionOutRecord.TYPE_INTEREST,
                 TransactionOutRecord.TYPE_DIVIDEND,
                 TransactionOutRecord.TYPE_INCOME,
-                TransactionOutRecord.TYPE_GIFT_RECEIVED)
+                TransactionOutRecord.TYPE_GIFT_RECEIVED,
+                TransactionOutRecord.TYPE_AIRDROP)
 
     SELL_LIST = (TransactionOutRecord.TYPE_WITHDRAWAL,
                  TransactionOutRecord.TYPE_SPEND,
                  TransactionOutRecord.TYPE_GIFT_SENT,
                  TransactionOutRecord.TYPE_GIFT_SPOUSE,
-                 TransactionOutRecord.TYPE_CHARITY_SENT)
+                 TransactionOutRecord.TYPE_CHARITY_SENT,
+                 TransactionOutRecord.TYPE_LOST)
     SHEETNAME_MAX_LEN = 31
     MAX_COL_WIDTH = 30
 

@@ -85,6 +85,9 @@ class TransactionHistory(object):
         if config.debug:
             print("%ssplit: total transactions=%d" % (Fore.CYAN, len(self.transactions)))
 
+    def __str__(self):
+        return '{} {}'.format(print("transactions", self.transactions), print("value asset", self.value_asset))
+
     def get_all_values(self, tr):
         if tr.buy and tr.buy.acquisition and tr.buy.cost is None:
             if tr.sell:
@@ -141,13 +144,19 @@ class TransactionHistory(object):
                                                                      tr.fee.quantity)
     def which_asset_value(self, tr):
         if config.trade_asset_type == config.TRADE_ASSET_TYPE_BUY:
-            value, fixed = self.value_asset.get_value(tr.buy.asset,
-                                                      tr.buy.timestamp,
-                                                      tr.buy.quantity)
+            if tr.buy.cost is None:
+                value, fixed = self.value_asset.get_value(tr.buy.asset,
+                                                          tr.buy.timestamp,
+                                                          tr.buy.quantity)
+            else:
+                value, fixed = tr.buy.cost, tr.buy.cost_fixed
         elif config.trade_asset_type == config.TRADE_ASSET_TYPE_SELL:
-            value, fixed = self.value_asset.get_value(tr.sell.asset,
-                                                      tr.sell.timestamp,
-                                                      tr.sell.quantity)
+            if tr.sell.proceeds is None:
+                value, fixed = self.value_asset.get_value(tr.sell.asset,
+                                                          tr.sell.timestamp,
+                                                          tr.sell.quantity)
+            else:
+                value, fixed = tr.sell.proceeds, tr.sell.proceeds_fixed
         else:
             pos_sell_asset = pos_buy_asset = len(config.asset_priority) + 1
 
@@ -157,13 +166,20 @@ class TransactionHistory(object):
                 pos_buy_asset = config.asset_priority.index(tr.buy.asset)
 
             if pos_sell_asset <= pos_buy_asset:
-                value, fixed = self.value_asset.get_value(tr.sell.asset,
-                                                          tr.sell.timestamp,
-                                                          tr.sell.quantity)
+                if tr.sell.proceeds is None:
+                    value, fixed = self.value_asset.get_value(tr.sell.asset,
+                                                              tr.sell.timestamp,
+                                                              tr.sell.quantity)
+                else:
+                    value, fixed = tr.sell.proceeds, tr.sell.proceeds_fixed
             else:
-                value, fixed = self.value_asset.get_value(tr.buy.asset,
-                                                          tr.buy.timestamp,
-                                                          tr.buy.quantity)
+                if tr.buy.cost is None:
+                    value, fixed = self.value_asset.get_value(tr.buy.asset,
+                                                              tr.buy.timestamp,
+                                                              tr.buy.quantity)
+                else:
+                    value, fixed = tr.buy.cost, tr.buy.cost_fixed
+
         return value, fixed
 
 class TransactionBase(object):
@@ -180,6 +196,11 @@ class TransactionBase(object):
         self.note = None
         self.matched = False
         self.pooled = []
+    
+    def __str__(self):
+        return '{} {} {}'.format(self.t_type, self.asset, self.quantity)
+        
+        
 
     def set_tid(self):
         self.tid = self.t_record.set_tid()
@@ -192,8 +213,20 @@ class TransactionBase(object):
             return ''
         return '{:0,f}'.format(self.quantity.normalize())
 
+    def _format_asset(self):
+        if sys.version_info[0] < 3:
+            return self.asset.decode('utf8')
+        return self.asset
+
+    def _format_wallet(self):
+        if sys.version_info[0] < 3:
+            return self.wallet.decode('utf8')
+        return self.wallet
+
     def _format_note(self):
         if self.note:
+            if sys.version_info[0] < 3:
+                return "'%s' " % self.note.decode('utf8')
             return "'%s' " % self.note
         return ''
 
@@ -217,8 +250,7 @@ class TransactionBase(object):
     def _format_timestamp(self):
         if self.timestamp.microsecond:
             return self.timestamp.strftime('%Y-%m-%dT%H:%M:%S.%f %Z')
-        else:
-            return self.timestamp.strftime('%Y-%m-%dT%H:%M:%S %Z')
+        return self.timestamp.strftime('%Y-%m-%dT%H:%M:%S %Z')
 
     def __eq__(self, other):
         return (self.asset, self.timestamp) == (other.asset, other.timestamp)
@@ -249,20 +281,26 @@ class Buy(TransactionBase):
     TYPE_DIVIDEND = TransactionRecord.TYPE_DIVIDEND
     TYPE_INCOME = TransactionRecord.TYPE_INCOME
     TYPE_GIFT_RECEIVED = TransactionRecord.TYPE_GIFT_RECEIVED
+    TYPE_AIRDROP = TransactionRecord.TYPE_AIRDROP
     TYPE_TRADE = TransactionRecord.TYPE_TRADE
 
-    ACQUISITION_TYPES = {TYPE_MINING, TYPE_STAKING, TYPE_INCOME, TYPE_INTEREST,
-                         TYPE_DIVIDEND, TYPE_GIFT_RECEIVED, TYPE_TRADE}
+    ACQUISITION_TYPES = {TYPE_MINING, TYPE_STAKING, TYPE_INTEREST, TYPE_DIVIDEND,
+                         TYPE_INCOME, TYPE_GIFT_RECEIVED, TYPE_AIRDROP, TYPE_TRADE}
 
     def __init__(self, t_type, buy_quantity, buy_asset, buy_value):
         super(Buy, self).__init__(t_type, buy_asset, buy_quantity)
-        self.cost = buy_value
-        if self.cost is not None:
-            self.cost_fixed = True
-        else:
-            self.cost_fixed = False
-
         self.acquisition = bool(self.t_type in self.ACQUISITION_TYPES)
+        self.cost = None
+        self.cost_fixed = False
+
+        if self.acquisition and buy_value is not None:
+            self.cost = buy_value
+            self.cost_fixed = True
+
+    def __str__(self):
+        return '{} {} {} {}'.format(self.t_type ,self.acquisition, self.cost, self.cost_fixed)
+        
+        
 
     def __iadd__(self, other):
         if not self.pooled:
@@ -326,22 +364,23 @@ class Buy(TransactionBase):
                 config.ccy)
         return ''
 
-    def __str__(self, pooled_bold=False, quantity_bold=False):
-        return "%s%s %s%s %s %s%s%s%s '%s' %s %s[TID:%s]%s" % (
-            type(self).__name__.upper(),
-            '*' if not self.acquisition else '',
-            self.t_type,
-            Style.BRIGHT if quantity_bold else '',
-            self._format_quantity(),
-            self.asset,
-            Style.NORMAL if quantity_bold else '',
-            self._format_cost(),
-            self._format_fee(),
-            self.wallet,
-            self._format_timestamp(),
-            self._format_note(),
-            self._format_tid(),
-            self._format_pooled(pooled_bold))
+    # def __str__(self, pooled_bold=False, quantity_bold=False):
+    #     return "%s%s %s%s %s %s%s%s%s '%s' %s %s[TID:%s]%s" % (
+    #         type(self).__name__.upper(),
+    #         '*' if not self.acquisition else '',
+    #         self.t_type,
+    #         Style.BRIGHT if quantity_bold else '',
+    #         self._format_quantity(),
+    #         self._format_asset(),
+    #         Style.NORMAL if quantity_bold else '',
+    #         self._format_cost(),
+    #         self._format_fee(),
+    #         self._format_wallet(),
+    #         self._format_timestamp(),
+    #         self._format_note(),
+    #         self._format_tid(),
+    #         self._format_pooled(pooled_bold))
+
 
 class Sell(TransactionBase):
     TYPE_WITHDRAWAL = TransactionRecord.TYPE_WITHDRAWAL
@@ -349,19 +388,21 @@ class Sell(TransactionBase):
     TYPE_GIFT_SENT = TransactionRecord.TYPE_GIFT_SENT
     TYPE_GIFT_SPOUSE = TransactionRecord.TYPE_GIFT_SPOUSE
     TYPE_CHARITY_SENT = TransactionRecord.TYPE_CHARITY_SENT
+    TYPE_LOST = TransactionRecord.TYPE_LOST
     TYPE_TRADE = TransactionRecord.TYPE_TRADE
 
-    DISPOSAL_TYPES = {TYPE_SPEND, TYPE_GIFT_SENT, TYPE_GIFT_SPOUSE, TYPE_CHARITY_SENT, TYPE_TRADE}
+    DISPOSAL_TYPES = {TYPE_SPEND, TYPE_GIFT_SENT, TYPE_GIFT_SPOUSE, TYPE_CHARITY_SENT,
+                      TYPE_LOST, TYPE_TRADE}
 
     def __init__(self, t_type, sell_quantity, sell_asset, sell_value):
         super(Sell, self).__init__(t_type, sell_asset, sell_quantity)
-        self.proceeds = sell_value
-        if self.proceeds is not None:
-            self.proceeds_fixed = True
-        else:
-            self.proceeds_fixed = False
-
         self.disposal = bool(self.t_type in self.DISPOSAL_TYPES)
+        self.proceeds = None
+        self.proceeds_fixed = False
+
+        if self.disposal and sell_value is not None:
+            self.proceeds = sell_value
+            self.proceeds_fixed = True
 
     def __iadd__(self, other):
         if not self.pooled:
@@ -432,11 +473,11 @@ class Sell(TransactionBase):
             self.t_type,
             Style.BRIGHT if quantity_bold else '',
             self._format_quantity(),
-            self.asset,
+            self._format_asset(),
             Style.NORMAL if quantity_bold else '',
             self._format_proceeds(),
             self._format_fee(),
-            self.wallet,
+            self._format_wallet(),
             self._format_timestamp(),
             self._format_note(),
             self._format_tid(),

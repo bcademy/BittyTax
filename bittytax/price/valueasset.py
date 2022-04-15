@@ -21,6 +21,12 @@ class ValueAsset(object):
                                  for v in config.data_source_select.values() for x in v}
         self.price_data = PriceData(data_sources_required, price_tool)
 
+    def __str__(self):
+        
+        return '{}'.format(self.price_report)
+        
+        
+
     def get_value(self, asset, timestamp, quantity):
         if asset == config.ccy:
             return quantity, True

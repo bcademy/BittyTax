@@ -155,17 +155,18 @@ def validate_year(value):
 def do_import(filename):
     import_records = ImportRecords()
 
-    if filename:
-        try:
-            import_records.import_excel(filename)
-        except xlrd.XLRDError:
-            with io.open(filename, newline='', encoding='utf-8') as csv_file:
-                import_records.import_csv(csv_file)
-    else:
-        if sys.version_info[0] < 3:
-            import_records.import_csv(codecs.getreader('utf-8')(sys.stdin))
-        else:
-            import_records.import_csv(sys.stdin)
+    # if filename:
+    #     try:
+    #         import_records.import_excel(filename)
+    #     except xlrd.XLRDError:
+    #         with io.open(filename, newline='', encoding='utf-8') as csv_file:
+    #             import_records.import_csv(csv_file)
+    # else:
+    #     if sys.version_info[0] < 3:
+    #         import_records.import_csv(codecs.getreader('utf-8')(sys.stdin))
+    #     else:
+    #         import_records.import_csv(sys.stdin)
+    import_records.importarray(filename)
 
     print("%simport %s (success=%s, failure=%s)" % (
         Fore.WHITE, 'successful' if import_records.failure_cnt <= 0 else 'failure',
@@ -173,7 +174,7 @@ def do_import(filename):
 
     if import_records.failure_cnt > 0:
         raise ImportFailureError
-
+    print(import_records.get_records())
     return import_records.get_records()
 
 def do_tax(transaction_records, tax_rules, skip_integrity_check):
@@ -182,12 +183,13 @@ def do_tax(transaction_records, tax_rules, skip_integrity_check):
 
     tax = TaxCalculator(transaction_history.transactions, tax_rules)
     tax.pool_same_day()
-    tax.match(tax.DISPOSAL_SAME_DAY)
+    
+    tax.match_sell(tax.DISPOSAL_SAME_DAY)
 
     if tax_rules == config.TAX_RULES_UK_INDIVIDUAL:
-        tax.match(tax.DISPOSAL_BED_AND_BREAKFAST)
+        tax.match_buyback(tax.DISPOSAL_BED_AND_BREAKFAST)
     elif tax_rules in config.TAX_RULES_UK_COMPANY:
-        tax.match(tax.DISPOSAL_TEN_DAY)
+        tax.match_sell(tax.DISPOSAL_TEN_DAY)
 
     tax.process_section104(skip_integrity_check)
     return tax, value_asset

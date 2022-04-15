@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # (c) Nano Nano Ltd 2019
 
-import datetime
 import sys
 from decimal import Decimal
+from datetime import datetime
 
 from colorama import Fore, Style
 import dateutil.parser
@@ -65,11 +65,12 @@ class DataParser(object):
         return header_str[:TERM_WIDTH] + '...' if len(header_str) > TERM_WIDTH else header_str
 
     @classmethod
-    def parse_timestamp(cls, timestamp_str, tzinfos=None, tz=None, dayfirst=False):
+    def parse_timestamp(cls, timestamp_str, tzinfos=None, tz=None, dayfirst=False, fuzzy=False):
         if isinstance(timestamp_str, int):
-            timestamp = datetime.datetime.utcfromtimestamp(timestamp_str)
+            timestamp = datetime.utcfromtimestamp(timestamp_str)
         else:
-            timestamp = dateutil.parser.parse(timestamp_str, tzinfos=tzinfos, dayfirst=dayfirst)
+            timestamp = dateutil.parser.parse(timestamp_str,
+                                              tzinfos=tzinfos, dayfirst=dayfirst, fuzzy=fuzzy)
 
         if tz:
             timestamp = timestamp.replace(tzinfo=dateutil.tz.gettz(tz))
@@ -84,6 +85,9 @@ class DataParser(object):
 
     @classmethod
     def convert_currency(cls, value, from_currency, timestamp):
+        if from_currency not in config.fiat_list:
+            return None
+
         if not value or value is None:
             return None
 
@@ -93,7 +97,11 @@ class DataParser(object):
         if config.ccy == from_currency:
             return Decimal(value)
 
-        rate_ccy, _, _, _ = cls.price_data.get_historical(from_currency, config.ccy, timestamp)
+        if timestamp.date() >= datetime.now().date():
+            rate_ccy, _, _ = cls.price_data.get_latest(from_currency, config.ccy)
+        else:
+            rate_ccy, _, _, _ = cls.price_data.get_historical(from_currency, config.ccy, timestamp)
+
         value_in_ccy = Decimal(value) * rate_ccy
 
         if config.debug:
