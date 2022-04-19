@@ -6,7 +6,6 @@ import datetime
 from colorama import Back
 
 from .parsers import *
-from .mergers import *
 from ..config import config
 from .exceptions import DataRowError
 
